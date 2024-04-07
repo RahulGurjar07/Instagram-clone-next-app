@@ -9,7 +9,18 @@ import { IoMdAddCircleOutline } from "react-icons/io";
 import { HiCamera } from "react-icons/hi";
 import { AiOutlineClose } from "react-icons/ai";
 import { app } from "@/firebase";
-import { getDownloadURL, getStorage, ref, uploadBytesResumable } from "firebase/storage";
+import {
+  getDownloadURL,
+  getStorage,
+  ref,
+  uploadBytesResumable,
+} from "firebase/storage";
+import {
+  addDoc,
+  collection,
+  getFirestore,
+  serverTimestamp,
+} from "firebase/firestore";
 
 export default function Header() {
   const { data: session } = useSession();
@@ -17,7 +28,11 @@ export default function Header() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [imageFileUrl, setImageFileUrl] = useState(null);
   const filePickerRef = useRef(null);
-const [imageFileUploading, setImageFileUploading] = useState(false);
+  const [imageFileUploading, setImageFileUploading] = useState(false);
+  const [postUploading, setPostUploading] = useState(false);
+  const db = getFirestore(app);
+  const [caption, setCaption] = useState("");
+  // console.log(session);
 
   function addImageToPost(e) {
     const file = e.target.files[0];
@@ -31,34 +46,55 @@ const [imageFileUploading, setImageFileUploading] = useState(false);
     if (selectedFile) {
       uploadImageToStorage();
     }
-  } , [selectedFile]);
+  }, [selectedFile]);
 
   async function uploadImageToStorage() {
     setImageFileUploading(true);
     const storage = getStorage(app);
-    const fileName = new Date().getTime() + '-' + selectedFile.name;
+    const fileName = new Date().getTime() + "-" + selectedFile.name;
     const storageRef = ref(storage, fileName);
     const uploadTask = uploadBytesResumable(storageRef, selectedFile);
     uploadTask.on(
-      'state_changed',
+      "state_changed",
       (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        console.log('Upload is ' + progress + '% done');
+        const progress =
+          (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        console.log("Upload is " + progress + "% done");
       },
       (error) => {
         console.error(error);
-        setImageFileUploading(false)
-        setImageFileUrl(null)
-        setSelectedFile(null)
+        setImageFileUploading(false);
+        setImageFileUrl(null);
+        setSelectedFile(null);
       },
       () => {
-        getDownloadURL(uploadTask.snapshot.ref).then
-        ((downloadURL) => {
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
           setImageFileUrl(downloadURL);
-          setImageFileUploading(false)
-        })
+          setImageFileUploading(false);
+        });
       }
-    )
+    );
+  }
+
+  async function handleSubmit() {
+    setPostUploading(true);
+    try {
+      const docRef = await addDoc(collection(db, "posts"), {
+        caption: caption,
+        image: imageFileUrl,
+        username: session.user.username,
+        profilePic: session.user.image,
+        timestamp: serverTimestamp(),
+      });
+      // console.log("Document written with ID: ", docRef.id);
+      setPostUploading(false);
+      setIsOpen(false);
+      setSelectedFile(null);
+      setImageFileUrl(null);
+      setCaption("");
+    } catch (e) {
+      console.error("Error adding document: ", e);
+    }
   }
 
   return (
@@ -120,13 +156,23 @@ const [imageFileUploading, setImageFileUploading] = useState(false);
                 onClick={() => setSelectedFile(null)}
                 src={imageFileUrl}
                 alt="Selected Image"
-                className={`w-full max-h-[250px] object-cover cursor-pointer ${imageFileUploading ? 'animate-pulse' : ''}`}
+                className={`w-full max-h-[250px] object-cover cursor-pointer ${
+                  imageFileUploading ? "animate-pulse" : ""
+                }`}
               />
-            
             ) : (
-            <HiCamera onClick={() => filePickerRef.current.click()} className="text-4xl text-gray-400 cursor-pointer" />
+              <HiCamera
+                onClick={() => filePickerRef.current.click()}
+                className="text-4xl text-gray-400 cursor-pointer"
+              />
             )}
-            <input hidden ref={filePickerRef} type="file" accept="image/*" onChange={addImageToPost} />
+            <input
+              hidden
+              ref={filePickerRef}
+              type="file"
+              accept="image/*"
+              onChange={addImageToPost}
+            />
           </div>
 
           <input
@@ -134,10 +180,19 @@ const [imageFileUploading, setImageFileUploading] = useState(false);
             maxLength="150"
             placeholder="Please enter your caption..."
             className="m-4 border-none text-center w-full focus:ring-0 outline-none"
+            onChange={(e) => {
+              setCaption(e.target.value);
+            }}
           />
 
           <button
-            // disabled
+            disabled={
+              postUploading ||
+              imageFileUploading ||
+              !selectedFile ||
+              caption.trim() === ""
+            }
+            onClick={handleSubmit}
             className="w-full bg-red-600 text-white p-2 shadow-md rounded-lg hover:brightness-105 disabled:bg-gray-200 disabled:cursor-not-allowed disabled:hover:brightness-100"
           >
             Upload Post
