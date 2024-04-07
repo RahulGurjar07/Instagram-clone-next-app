@@ -1,4 +1,4 @@
-'use client'
+
 
 import MiniProfile from "./MiniProfile"
 import Posts from "./Posts"

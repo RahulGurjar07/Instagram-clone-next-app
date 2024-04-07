@@ -89,9 +89,7 @@ export default function Header() {
       // console.log("Document written with ID: ", docRef.id);
       setPostUploading(false);
       setIsOpen(false);
-      setSelectedFile(null);
-      setImageFileUrl(null);
-      setCaption("");
+      location.reload();
     } catch (e) {
       console.error("Error adding document: ", e);
     }
